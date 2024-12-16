@@ -39,12 +39,7 @@ COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 COPY . /var/www
 COPY ./.docker/php/php-dev.ini /usr/local/etc/php/conf.d/php.ini
 
-RUN composer install --prefer-dist --no-scripts --no-progress --no-suggest --optimize-autoloader \
-    && chmod -R 775 /var/www/storage /var/www/bootstrap/cache
-
-RUN npm install
-
-COPY ./.docker/php/start.sh /usr/local/bin/start.sh
+COPY ./.docker/start.sh /usr/local/bin/start.sh
 RUN chmod +x /usr/local/bin/start.sh
 
 USER www-data
