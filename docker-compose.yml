@@ -1,0 +1,92 @@
+services:
+    nginx:
+        build:
+            context: .
+            dockerfile: .docker/nginx/Dockerfile
+        container_name: ${COMPOSE_PROJECT_NAME}_nginx
+        restart: unless-stopped
+        ports:
+            - "80:80"
+        volumes:
+            - .:/var/www
+            - ./.docker/nginx/nginx.conf:/etc/nginx/nginx.conf
+        depends_on:
+            - php
+        networks:
+            - laravel
+
+    php:
+        build:
+            context: .
+            dockerfile: .docker/php/Dockerfile
+        container_name: ${COMPOSE_PROJECT_NAME}_php
+        restart: unless-stopped
+        volumes:
+            - .:/var/www
+            - ./.docker/php/php-dev.ini:/usr/local/etc/php/conf.d/php.ini
+        depends_on:
+            - mysql
+        ports:
+            - "9000:9000"
+            - "5173:5173"
+        environment:
+            - APP_ENV=local
+        networks:
+            - laravel
+
+    mysql:
+        image: mysql:8.0
+        container_name: ${COMPOSE_PROJECT_NAME}_mysql
+        restart: unless-stopped
+        volumes:
+            - mysql_data:/var/lib/mysql
+        ports:
+            - "3306:3306"
+        environment:
+            MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
+            MYSQL_DATABASE: ${DB_DATABASE}
+            MYSQL_DATABASE_TEST: laravel_test
+        command:
+            - --character-set-server=utf8mb4
+            - --collation-server=utf8mb4_unicode_ci
+        healthcheck:
+            test: [ "CMD", "mysqladmin", "ping", "-h", "localhost" ]
+            interval: 10s
+            timeout: 5s
+            retries: 5
+            start_period: 60s
+        networks:
+            - laravel
+
+    redis:
+        image: redis:alpine
+        container_name: ${COMPOSE_PROJECT_NAME}_redis
+        restart: unless-stopped
+        ports:
+            - "6379:6379"
+        healthcheck:
+            test: [ "CMD", "redis-cli", "ping" ]
+            interval: 10s
+            timeout: 5s
+            retries: 5
+            start_period: 60s
+        networks:
+            - laravel
+
+    mailhog:
+        image: mailhog/mailhog:latest
+        container_name: ${COMPOSE_PROJECT_NAME}_mailhog
+        restart: unless-stopped
+        ports:
+            - "1025:1025"
+            - "8025:8025"
+        networks:
+            - laravel
+
+volumes:
+    mysql_data:
+        driver: local
+
+networks:
+    laravel:
+        driver: bridge
