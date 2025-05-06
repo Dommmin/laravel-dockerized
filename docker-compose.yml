@@ -87,12 +87,15 @@ services:
         ports:
             - "1025:1025"
             - "8025:8025"
+        volumes:
+            - mailhog_data:/maildir
         networks:
             - laravel-network
 
 volumes:
     mysql_data:
     nginx_logs:
+    mailhog_data:
 
 networks:
     laravel-network:

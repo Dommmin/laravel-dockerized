@@ -131,42 +131,42 @@ jobs:
           name: release
           path: release.tar.gz
 
-  deploy:
-    name: 🚀 Deploy to Server
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup SSH Key
-        uses: webfactory/ssh-agent@v0.9.1
-        with:
-          ssh-private-key: ${{ secrets.SSH_KEY }}
-
-      - name: Setup known_hosts
-        run: |
-          mkdir -p ~/.ssh
-          ssh-keyscan -p ${{ secrets.SSH_PORT }} ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
-
-      - name: Download release artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: release
-          path: .
-
-      - name: Create .env file from GitHub Variables
-        run: |
-          echo "${{ vars.ENV_FILE }}" > .env
-
-      - name: Upload release to server
-        run: |
-          scp -vvv -P ${{ secrets.SSH_PORT }} release.tar.gz ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/home/${{ secrets.SSH_USER }}/laravel/
-
-      - name: Upload .env file to shared directory
-        run: |
-          scp -P ${{ secrets.SSH_PORT }} .env ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/home/${{ secrets.SSH_USER }}/laravel/shared/.env
-
-      - name: Run deploy script on server
-        run: |
-          ssh -p ${{ secrets.SSH_PORT }} ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} 'bash -s' < ./deploy.sh
+#  deploy:
+#    name: 🚀 Deploy to Server
+#    needs: build
+#    runs-on: ubuntu-latest
+#    steps:
+#      - name: Checkout code
+#        uses: actions/checkout@v4
+#
+#      - name: Setup SSH Key
+#        uses: webfactory/ssh-agent@v0.9.1
+#        with:
+#          ssh-private-key: ${{ secrets.SSH_KEY }}
+#
+#      - name: Setup known_hosts
+#        run: |
+#          mkdir -p ~/.ssh
+#          ssh-keyscan -p ${{ secrets.SSH_PORT }} ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
+#
+#      - name: Download release artifact
+#        uses: actions/download-artifact@v4
+#        with:
+#          name: release
+#          path: .
+#
+#      - name: Create .env file from GitHub Variables
+#        run: |
+#          echo "${{ vars.ENV_FILE }}" > .env
+#
+#      - name: Upload release to server
+#        run: |
+#          scp -vvv -P ${{ secrets.SSH_PORT }} release.tar.gz ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/home/${{ secrets.SSH_USER }}/laravel/
+#
+#      - name: Upload .env file to shared directory
+#        run: |
+#          scp -P ${{ secrets.SSH_PORT }} .env ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:/home/${{ secrets.SSH_USER }}/laravel/shared/.env
+#
+#      - name: Run deploy script on server
+#        run: |
+#          ssh -p ${{ secrets.SSH_PORT }} ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} 'bash -s' < ./deploy.sh
