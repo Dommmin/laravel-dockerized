@@ -121,7 +121,7 @@ sudo systemctl restart nginx
 # Run
 nano /etc/php/8.3/fpm/pool.d/www.conf
 ```
-### Replace with the following configuration:
+### Replace it with the following configuration and restart PHP-FPM:
 ```ini
 [www]
 user = deployer
@@ -132,9 +132,24 @@ listen.owner = www-data
 listen.group = www-data
 listen.mode = 0660
 
+pm = dynamic
+pm.max_children = 20
+pm.start_servers = 4
+pm.min_spare_servers = 2
+pm.max_spare_servers = 6
+pm.process_idle_timeout = 10s
+pm.max_requests = 500
+
 php_admin_value[open_basedir] = /home/deployer/laravel/current/:/home/deployer/laravel/releases/:/home/deployer/laravel/shared/:/tmp/:/var/lib/php/sessions/
 php_admin_value[disable_functions] = "exec,passthru,shell_exec,system,proc_open,popen"
 php_admin_flag[expose_php] = off
+php_admin_value[memory_limit] = 256M
+php_admin_value[max_execution_time] = 120
+
+php_admin_value[realpath_cache_size] = 4096K
+php_admin_value[realpath_cache_ttl] = 600
+php_admin_value[opcache.enable] = 1
+php_admin_value[opcache.memory_consumption] = 128
 ```
 
 ## 4. Update PHP Configuration
@@ -227,6 +242,7 @@ Add the following secrets to your GitHub repository:
 - `SSH_HOST`: Your VPS IP address or domain
 - `SSH_USER`: Your VPS username
 - `SSH_KEY`: The private SSH key generated above
+- `SSH_PORT`: The SSH port (default is 22)
 
 Add variable for .env production file
 - `ENV_FILE`: The contents of your .env file
