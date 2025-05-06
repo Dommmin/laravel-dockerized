@@ -1,6 +1,10 @@
-# VPS Server Setup Guide
+# Zero Downtime Deployment for Laravel with GitHub Actions
 
-This guide will help you set up your VPS for Laravel deployment with zero downtime.
+# This guide will help you set up a zero downtime deployment for your Laravel application using GitHub Actions on a VPS. The setup includes Nginx, PHP-FPM, and MariaDB, along with proper configurations for security and performance.
+
+## What is Zero Downtime Deployment?
+Zero downtime deployment means updating your app without users noticing any interruption — the site stays online and responsive while the new version is being deployed.
+
 ## 0. Create User (optional—you can use your non-root user)
 
 ```bash
