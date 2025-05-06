@@ -1,0 +1,106 @@
+image: dommin/php-8.4-fpm:latest
+
+services:
+  - name: mysql:8.0
+    alias: mysql
+    variables:
+      MYSQL_DATABASE: laravel_test
+      MYSQL_ROOT_PASSWORD: secret
+
+variables:
+  DB_CONNECTION: mysql
+  DB_HOST: mysql
+  DB_PORT: 3306
+  DB_DATABASE: laravel_test
+  DB_USERNAME: root
+  DB_PASSWORD: secret
+  SESSION_DRIVER: array
+  COMPOSER_CACHE_DIR: "$CI_PROJECT_DIR/.composer-cache"
+  npm_config_cache: "$CI_PROJECT_DIR/.npm"
+  npm_config_fund: "false"
+  npm_config_audit: "false"
+  npm_config_progress: "false"
+  npm_config_loglevel: "error"
+  npm_config_prefer_offline: "true"
+  PHP_MEMORY_LIMIT: "2G"
+  NODE_OPTIONS: "--max-old-space-size=4096"
+
+# Globalna konfiguracja cache
+cache:
+  key:
+    files:
+      - composer.lock
+      - package-lock.json
+    prefix: $CI_COMMIT_REF_SLUG
+  paths:
+    - vendor/
+    - node_modules/
+    - .npm/
+    - .composer-cache/
+    - public/build/
+    - bootstrap/cache/
+
+# Globalne ustawienia dla szybszej diagnostyki
+default:
+  interruptible: true
+
+stages:
+  - test
+  - build
+  - deploy
+
+test:
+  stage: test
+  script:
+    - cp .env.testing .env
+    - composer install --prefer-dist --no-progress --no-interaction --optimize-autoloader --no-scripts &
+    - npm ci &
+    - wait
+    - npm run build
+    - (composer larastan & composer pint & npm run format & npm run lint & wait)
+    - php artisan config:cache
+    - php artisan route:cache
+    - XDEBUG_MODE=coverage ./vendor/bin/pest --parallel
+
+build:
+  stage: build
+  needs:
+    - test
+  script:
+    - composer install --no-dev --prefer-dist --no-interaction --no-progress --optimize-autoloader --no-scripts &
+    - npm ci --production &
+    - wait
+    - npm run build --production
+    - mkdir -p release
+    - shopt -s extglob
+    - cp -r !(release|.git|tests|node_modules|.npm|.composer-cache|release.tar.gz) release/
+    - tar -czf release.tar.gz -C release .
+    - rm -rf release
+  artifacts:
+    paths:
+      - release.tar.gz
+    expire_in: 1 week
+
+deploy:
+  stage: deploy
+  image: alpine:latest
+  needs:
+    - build
+  before_script:
+    - apk add --no-cache openssh-client git
+    - eval $(ssh-agent -s)
+    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
+    - mkdir -p ~/.ssh
+    - chmod 700 ~/.ssh
+    - echo -e "Host *\n\tStrictHostKeyChecking no\n\n" > ~/.ssh/config
+  script:
+    - echo "$ENV_FILE" > .env
+    - ssh -p $SSH_PORT $SSH_USER@$SSH_HOST "mkdir -p /home/$SSH_USER/laravel/shared"
+    - scp -P $SSH_PORT release.tar.gz $SSH_USER@$SSH_HOST:/home/$SSH_USER/laravel/
+    - scp -P $SSH_PORT .env $SSH_USER@$SSH_HOST:/home/$SSH_USER/laravel/shared/.env
+    - ssh -p $SSH_PORT $SSH_USER@$SSH_HOST 'bash -s' < ./deploy.sh
+  environment:
+    name: production
+  only:
+    - main
+  when: on_success
