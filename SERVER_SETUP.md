@@ -178,7 +178,8 @@ opcache.enable=1
 opcache.memory_consumption=256
 opcache.interned_strings_buffer=32
 opcache.max_accelerated_files=20000
-opcache.validate_timestamps=0
+opcache.validate_timestamps=1
+opcache.revalidate_freq=2
 opcache.enable_cli=0
 opcache.jit_buffer_size=256M
 opcache.jit=1235
@@ -264,7 +265,16 @@ sudo certbot --nginx -d your-domain.com
 sudo systemctl status certbot.timer
 ```
 
-## 9. Final Steps
+## 9. Install Redis (Optional)
+
+```bash
+# Install Redis
+sudo apt install -y redis-server
+sudo systemctl enable redis-server
+sudo systemctl start redis-server
+```
+
+## 10. Final Steps
 
 1. Push your code to the `main` branch to trigger the deployment.
 2. Monitor the GitHub Actions workflow to ensure it completes successfully.
