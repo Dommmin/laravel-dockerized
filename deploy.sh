@@ -38,6 +38,19 @@ ln -sf "$SHARED_DIR/.env" "$RELEASE_DIR/.env"
 echo "▶️ Optimizing application..."
 cd "$RELEASE_DIR"
 php artisan optimize:clear
+
+# Reset opcache if available
+if command -v opcache_reset &> /dev/null; then
+    echo "▶️ Resetting OPcache..."
+    php -r "opcache_reset();" || true
+fi
+
+# Reset Redis cache if available
+if command -v redis-cli &> /dev/null; then
+    echo "▶️ Clearing Redis cache..."
+    redis-cli FLUSHALL || true
+fi
+
 php artisan optimize
 php artisan storage:link
 
