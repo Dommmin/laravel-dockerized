@@ -2,22 +2,20 @@ services:
     app:
         build:
             context: .
-            dockerfile: docker/php/Dockerfile
+            dockerfile: ./docker/php/Dockerfile
             args:
-                USER_ID: ${USER_ID:-1000}
-                GROUP_ID: ${GROUP_ID:-1000}
+                - USER_ID=${USER_ID:-1000}
+                - GROUP_ID=${GROUP_ID:-1000}
         container_name: ${COMPOSE_PROJECT_NAME}_app
-        command: /usr/local/bin/start.sh
+        command: ["sh", "-c", "/usr/local/bin/start.sh"]
         restart: unless-stopped
         working_dir: /var/www
         volumes:
             - ./:/var/www:cached
+            - .env:/var/www/.env
             - ./docker/php/php.ini:/usr/local/etc/php/conf.d/custom.ini
             - ./docker/php/www.conf:/usr/local/etc/php-fpm.d/www.conf
             - ./docker/supervisord.conf:/etc/supervisor/supervisord.conf
-        environment:
-            - APP_ENV=${APP_ENV:-local}
-            - APP_DEBUG=${APP_DEBUG:-true}
         networks:
             - laravel-network
         ports:
@@ -35,13 +33,12 @@ services:
         restart: unless-stopped
         ports:
             - "80:80"
-            - "443:443"
         volumes:
             - ./:/var/www
             - ./docker/nginx/conf.d:/etc/nginx/conf.d
-            - nginx_logs:/var/log/nginx
+            - ./docker/nginx/log:/var/log/nginx
         depends_on:
-            - app
+            -   app
         networks:
             - laravel-network
 
@@ -52,13 +49,16 @@ services:
         environment:
             MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
             MYSQL_DATABASE: ${DB_DATABASE}
-            MYSQL_USER: ${DB_USERNAME}
-            MYSQL_PASSWORD: ${DB_PASSWORD}
+            MYSQL_DATABASE_TEST: laravel_test
+        command:
+            - --character-set-server=utf8mb4
+            - --collation-server=utf8mb4_unicode_ci
         healthcheck:
-            test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+            test: [ "CMD", "mysqladmin", "ping", "-h", "localhost" ]
             interval: 5s
             timeout: 3s
-            retries: 10
+            retries: 5
+            start_period: 60s
         ports:
             - "3306:3306"
         volumes:
@@ -71,10 +71,11 @@ services:
         container_name: ${COMPOSE_PROJECT_NAME}_redis
         restart: unless-stopped
         healthcheck:
-            test: ["CMD", "redis-cli", "ping"]
-            interval: 5s
-            timeout: 3s
+            test: [ "CMD", "redis-cli", "ping" ]
+            interval: 10s
+            timeout: 5s
             retries: 5
+            start_period: 60s
         ports:
             - "6379:6379"
         networks:
@@ -92,11 +93,12 @@ services:
         networks:
             - laravel-network
 
-volumes:
-    mysql_data:
-    nginx_logs:
-    mailhog_data:
-
 networks:
     laravel-network:
         driver: bridge
+
+volumes:
+    mysql_data:
+        driver: local
+    mailhog_data:
+        driver: local

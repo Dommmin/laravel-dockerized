@@ -1,0 +1,23 @@
+{
+    "apps": [
+        {
+            "name": "laravel",
+            "script": "/home/deployer/laravel/current/bootstrap/ssr/ssr.js",
+            "instances": 1,
+            "exec_mode": "fork",
+            "interpreter": "node",
+            "wait_ready": true,
+            "autorestart": true,
+            "max_restarts": 10,
+            "watch": false,
+            "error_file": "/home/deployer/laravel/shared/storage/logs/err.log",
+            "out_file": "/home/deployer/laravel/shared/storage/logs/out.log",
+            "log_file": "/home/deployer/laravel/shared/storage/logs/combined.log",
+            "time": true,
+            "env": {
+                "NODE_ENV": "production",
+                "PORT": "13714"
+            }
+        }
+    ]
+}

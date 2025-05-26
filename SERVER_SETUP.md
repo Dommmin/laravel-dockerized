@@ -13,21 +13,39 @@ sudo adduser deployer --ingroup www-data
 sudo usermod -aG sudo deployer
 
 # Secure sudo access
-echo "deployer ALL=(ALL:ALL) ALL" | sudo tee /etc/sudoers.d/deployer
-echo 'Defaults:deployer !requiretty' | sudo tee -a /etc/sudoers.d/deployer  
+echo "deployer ALL=(ALL) NOPASSWD: /usr/bin/supervisorctl, /usr/bin/systemctl restart php8.3-fpm, /usr/bin/systemctl restart nginx" | sudo tee /etc/sudoers.d/deployer-services
 
 # Fix home directory permissions
 sudo chmod 711 /home/deployer
 ```
 
 ## 1. Initial Server Setup
-
+### 1.1 Installation required packages
 ```bash
 # Update the system
-apt update
-sudo apt install -y nginx php-fpm mariadb-server ufw fail2ban acl
+sudo apt update
+
+sudo apt install -y nginx php-fpm mariadb-server ufw fail2ban acl supervisor
 sudo apt install -y php8.3-{cli,common,curl,xml,mbstring,zip,mysql,gd,intl,bcmath,redis,imagick,opcache,tokenizer,dom,fileinfo}
 sudo systemctl restart php8.3-fpm
+```
+### 1.2 Install Node + PM2 for SSR (optional)
+```
+# Download and install nvm:
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash
+
+# in lieu of restarting the shell
+\. "$HOME/.nvm/nvm.sh"
+
+# Download and install Node.js:
+nvm install 22
+
+# Install PM2
+npm install -g pm2
+
+# Configure PM2
+pm2 startup
+pm2 save
 ```
 
 ## 2. Configure Nginx
@@ -44,7 +62,7 @@ Add the following configuration:
 server {
     listen 80;
     listen [::]:80;
-    server_name your-domain.com;
+    server_name __;
     root /home/deployer/laravel/current/public;
 
     add_header X-Frame-Options "SAMEORIGIN";
@@ -64,14 +82,33 @@ server {
     keepalive_timeout 65;
     client_max_body_size 100M;
 
-    location ~* \.(jpg|jpeg|png|gif|ico|css|js|svg|woff|woff2|ttf|eot|webp)$ {
+     # Cache static files
+    location ~* \.(?:ico|css|js|gif|jpe?g|png|woff2?|eot|ttf|svg|otf)$ {
         expires 1y;
-        add_header Cache-Control "public, immutable";
         access_log off;
-        log_not_found off;
+        add_header Cache-Control "public, no-transform";
+        add_header X-Content-Type-Options "nosniff";
         try_files $uri =404;
     }
 
+    # Cache fonts
+    location ~* \.(woff2?|eot|ttf|otf)$ {
+        expires 1y;
+        access_log off;
+        add_header Cache-Control "public, no-transform";
+        add_header X-Content-Type-Options "nosniff";
+        try_files $uri =404;
+    }
+
+    # Cache images
+    location ~* \.(jpg|jpeg|png|gif|ico|webp)$ {
+        expires 1y;
+        access_log off;
+        add_header Cache-Control "public, no-transform";
+        add_header X-Content-Type-Options "nosniff";
+        try_files $uri =404;
+    }
+    
     location / {
         try_files $uri $uri/ /index.php?$query_string;
     }
@@ -123,7 +160,7 @@ sudo systemctl restart nginx
 
 ```bash
 # Run
-nano /etc/php/8.3/fpm/pool.d/www.conf
+sudo nano /etc/php/8.3/fpm/pool.d/www.conf
 ```
 ### Replace it with the following configuration and restart PHP-FPM:
 ```ini
@@ -159,7 +196,7 @@ php_admin_value[opcache.memory_consumption] = 128
 ## 4. Update PHP Configuration
 ```bash
 # Run
-nano /etc/php/8.3/fpm/php.ini
+sudo nano /etc/php/8.3/fpm/php.ini
 ```
 ### Replace it with the following configuration:
 ```ini
@@ -178,8 +215,8 @@ opcache.enable=1
 opcache.memory_consumption=256
 opcache.interned_strings_buffer=32
 opcache.max_accelerated_files=20000
-opcache.validate_timestamps=1
-opcache.revalidate_freq=2
+opcache.validate_timestamps=0
+opcache.revalidate_freq=0
 opcache.enable_cli=0
 opcache.jit_buffer_size=256M
 opcache.jit=1235
@@ -217,6 +254,8 @@ sudo chmod -R 2775 /home/deployer/laravel
 sudo mkdir -p /home/deployer/laravel/shared/storage/{app,framework,logs}
 sudo mkdir -p /home/deployer/laravel/shared/storage/framework/{cache,sessions,views}
 sudo chmod -R 775 /home/deployer/laravel/shared
+sudo chmod -R 775 /home/deployer/laravel/shared/storage
+sudo chown -R deployer:www-data /home/deployer/laravel/shared/storage
 
 # Set ACL for future files
 sudo setfacl -Rdm g:www-data:rwx /home/deployer/laravel
@@ -251,8 +290,40 @@ Add the following secrets to your GitHub repository:
 
 Add variable for .env production file
 - `ENV_FILE`: The contents of your .env file
+## 8. Configure Supervisor (queue, cron, etc.)
 
-## 8. Set Up SSL with Let's Encrypt (Optional but Recommended)
+```bash
+# Create Supervisor configuration file
+sudo nano /etc/supervisor/conf.d/laravel.con
+```
+
+### Replace it with the following configuration:
+```ini
+[program:laravel-worker]
+command=/usr/bin/php /home/deployer/laravel/current/artisan queue:work --timeout=3600 --tries=3 --sleep=3 --stop-when-empty
+autostart=true
+autorestart=true
+user=deployer
+numprocs=1
+stdout_logfile=/home/deployer/laravel/shared/storage/logs/laravel-worker.log
+stderr_logfile=/home/deployer/laravel/shared/storage/logs/laravel-worker.log
+
+[program:laravel-cron]
+command=/usr/bin/php /home/deployer/laravel/current/artisan schedule:run
+autostart=true
+autorestart=true
+user=deployer
+numprocs=1
+stdout_logfile=/home/deployer/laravel/shared/storage/logs/laravel-cron.log
+stderr_logfile=/home/deployer/laravel/shared/storage/logs/laravel-cron.log
+```
+
+```bash
+# Start Supervisor
+sudo supervisorctl start all
+```
+
+## 9. Set Up SSL with Let's Encrypt (Optional but Recommended)
 
 ```bash
 # Install Certbot
@@ -265,7 +336,7 @@ sudo certbot --nginx -d your-domain.com
 sudo systemctl status certbot.timer
 ```
 
-## 9. Install Redis (Optional)
+## 10. Install Redis (Optional)
 
 ```bash
 # Install Redis
@@ -274,7 +345,7 @@ sudo systemctl enable redis-server
 sudo systemctl start redis-server
 ```
 
-## 10. Final Steps
+## 11. Final Steps
 
 1. Push your code to the `main` branch to trigger the deployment.
 2. Monitor the GitHub Actions workflow to ensure it completes successfully.
